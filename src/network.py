@@ -84,7 +84,52 @@ class Network(object):
                 print 'Epoch {0} completed'.format(i)
 
     def update_mini_batch(self, mini_batch, eta):
-        pass
+        """
+        计算损失函数对w,b的偏导数（反相传播算法），更新w,b
+        :param mini_batch: mini_batch is a list of tuples ``(x, y)``
+        :param eta: learning rate
+        :return:
+        """
+        nabla_b = [np.zeros(b.shape) for b in self.biases]
+        nabla_w = [np.zeros(w.shape) for w in self.weights]
+        for x, y in mini_batch:
+            # 1. Feedforward: For each l = 2,3,...L compute activation
+            a = x  # input
+            activations = [x]  # 保存各层（2，3，...L）的激励
+            zs = []  # 保存各层的加权输出
+            for w, b in zip(self.weights, self.biases):
+                z = np.dot(w, a) + b
+                zs.append(z)
+                a = sigmoid_activate(z)
+                activations.append(a)
+
+            # 2. Output Error delta_L 计算输出层的error
+            derivative = self.costfunction_derivative(activations[-1], y)
+            delta = np.multiply(derivative, sigmoid_derivative(zs[-1]))
+
+            # 3. Backpropagate the error: For each l = L-1, L-2, ... 2
+            # 保存代价函数对 w 的偏导数
+            derivative_w = [np.random.randn(y, x) for x, y in zip(self.sizes[:-1], self.sizes[1:])]
+            # L与L-1层之间的对 w 的偏导数
+            derivative_w[-1] = np.dot(delta, activations[-2].transpose())
+            # 保存代价函数对 b 的偏导数
+            derivative_b = [np.random.randn(y, 1) for y in self.sizes[1:]]
+            # L与L-1层之间的对 b 的偏导数
+            derivative_b[-1] = delta
+            for l in xrange(2, self.layers_num):
+                # noinspection PyTypeChecker
+                delta = np.multiply(np.dot(self.weights[-l + 1].transpose(), delta),
+                                          sigmoid_derivative(zs[-l]))
+                derivative_w[-l] = np.dot(delta, activations[-l-1].transpose())
+                derivative_b[-l] = delta
+            nabla_b = [nb + dnb for nb, dnb in zip(nabla_b, derivative_b)]
+            nabla_w = [nw + dnw for nw, dnw in zip(nabla_w, derivative_w)]
+        # 4. Gradient descent: For each l = L, L-1, L-2, ... 2 update weights and biases
+        self.weights = [w - (eta / len(mini_batch)) * nw
+                            for w, nw in zip(self.weights, nabla_w)]
+        self.biases = [b - (eta / len(mini_batch)) * nb
+                       for b, nb in zip(self.biases, nabla_b)]
+
 
     def classify(self, test_data):
         """
@@ -95,3 +140,14 @@ class Network(object):
         results = [(np.argmax(self.feedforward(x)), y)
                    for x, y in test_data]
         return sum([int(x == y) for x, y in results])
+
+    @staticmethod
+    def costfunction_derivative(aL, y):
+        """
+        计算 cost function 对 **输出层** 激励 a 的偏导数
+        C = 1/2n ∑||y(x)−y||^2 = 1/2n ∑||y(x)−aL(x)||^2
+        :param aL:  output_activations
+        :param y:   训练集的 label
+        :return:
+        """
+        return aL - y
