@@ -151,6 +151,7 @@ class Network(object):
                 # 计算损失函数对w,b的偏导数（反相传播算法），更新w,b
                 self.update_mini_batch(mini_batch, eta, lmbda)
             print 'Epoch {0} completed'.format(i)
+            # print 'Epoch {0}: {1} / {2}'.format(i, self.classify(validation_data), len(validation_data))
 
             # 训练完毕，计算训练集和验证集上的分类错误率和代价函数的值
             if monitor_training_cost:
@@ -173,9 +174,7 @@ class Network(object):
                 evaluation_accuracy.append(accuracy)
                 print '\tevaluation_accuracy:{0}'.format(accuracy)
 
-        return training_cost, training_accuracy, \
-               evaluation_cost, evaluation_accuracy
-
+        return training_cost, training_accuracy, evaluation_cost, evaluation_accuracy
 
     def update_mini_batch(self, mini_batch, eta, lmbda):
         """
@@ -230,9 +229,9 @@ class Network(object):
         :param test_data: tuple的list集合，每个tuple包括(data, label)
         :return:
         """
-        results = [(np.argmax(self.feedforward(x)), y)
+        results = [(np.argmax(self.feedforward(x)), np.argmax(y))
                    for x, y in test_data]
-        return sum([int(x == y) for x, y in results])
+        return sum(int(x == y) for (x, y) in results)
 
     @staticmethod
     def costfunction_derivative(aL, y):
@@ -252,16 +251,13 @@ class Network(object):
         :param lmbda:
         :return:
         """
-        total_cost = 0
+        cost = 0.0
         for x, y in data:
-            predict = self.feedforward(x)
-            cost = self.cost.cost_function(predict, y)
-            total_cost += cost
-
-        # 加入正则项
-        total_cost += lmbda * np.sum(np.square(w for w in self.weights))
-        total_cost /= (2 * len(data))
-        return total_cost
+            a = self.feedforward(x)
+            cost += self.cost.cost_function(a, y) / len(data)
+        cost += 0.5 * (lmbda / len(data)) * sum(
+            np.linalg.norm(w) ** 2 for w in self.weights)
+        return cost
 
     def total_accuracy(self, data):
         """
@@ -269,7 +265,7 @@ class Network(object):
         :param data:
         :return:
         """
-        return self.classify(data) / len(data)
+        return 1.0 * self.classify(data) / len(data)
 
 
 def sigmoid_activate(z):
