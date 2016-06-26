@@ -10,7 +10,6 @@ import numpy as np
 
 
 class CrossEntropyCost(object):
-
     @staticmethod
     def cost_function(a, y):
         """
@@ -38,7 +37,6 @@ class CrossEntropyCost(object):
 
 
 class QuadraticCost(object):
-
     @staticmethod
     def cost_function(a, y):
         """
@@ -60,12 +58,13 @@ class QuadraticCost(object):
         """
         return (a - y) * sigmoid_derivative(z)
 
+
 class Network(object):
     """
     Neural Network using CrossEntropyCost or QuadraticCost, and apply regularization
     """
 
-    def __init__(self, sizes, cost = CrossEntropyCost, advance_init = True):
+    def __init__(self, sizes, cost=CrossEntropyCost, advance_init=True):
         """
         :type sizes: list
         :param sizes: 神经网络的模型，有多少层，每层有多少神经元，
@@ -117,7 +116,14 @@ class Network(object):
             a = sigmoid_activate(np.dot(w, a) + b)
         return a
 
-    def SGD(self, training_data, epochs, mini_batch_size, eta, validation_data, lmbda = 0.0):
+    def SGD(self, training_data, epochs, mini_batch_size, eta,
+            lmbda=0.0,
+            validation_data=None,
+            monitor_training_cost=False,
+            monitor_training_accuracy=False,
+            monitor_evaluation_cost=False,
+            monitor_evaluation_accuracy=False
+            ):
         """
         stochastic gradient descent
         :param training_data: 训练数据，tuple的list集合，每个tuple包括(data, label)
@@ -129,6 +135,11 @@ class Network(object):
         :return:
         """
         m = len(training_data)
+        # 保存训练过程的相关结果：cost 和 accuracy
+        training_cost = []
+        training_accuracy = []
+        evaluation_cost = []
+        evaluation_accuracy = []
         # 对于每次运行 SGD
         for i in xrange(epochs):
             np.random.shuffle(training_data)  # 将训练数据进行 shuffle!
@@ -139,12 +150,32 @@ class Network(object):
             for mini_batch in mini_batches:  # 遍历每一份 mini_batch 训练数据
                 # 计算损失函数对w,b的偏导数（反相传播算法），更新w,b
                 self.update_mini_batch(mini_batch, eta, lmbda)
+            print 'Epoch {0} completed'.format(i)
 
-            # 训练完毕，计算验证集上的分类错误率
-            if validation_data:
-                print 'Epoch {0}: {1} / {2}'.format(i, self.classify(validation_data), len(validation_data))
-            else:
-                print 'Epoch {0} completed'.format(i)
+            # 训练完毕，计算训练集和验证集上的分类错误率和代价函数的值
+            if monitor_training_cost:
+                cost = self.total_cost(training_data, lmbda)
+                training_cost.append(cost)
+                print '\ttraining_cost:{0}'.format(cost)
+
+            if monitor_training_accuracy:
+                accuracy = self.total_accuracy(training_data)
+                training_accuracy.append(accuracy)
+                print '\ttraining_accuracy:{0}'.format(accuracy)
+
+            if monitor_evaluation_cost:
+                cost = self.total_cost(validation_data, lmbda)
+                evaluation_cost.append(cost)
+                print '\tevaluation_cost:{0}'.format(cost)
+
+            if monitor_evaluation_accuracy:
+                accuracy = self.total_accuracy(validation_data)
+                evaluation_accuracy.append(accuracy)
+                print '\tevaluation_accuracy:{0}'.format(accuracy)
+
+        return training_cost, training_accuracy, \
+               evaluation_cost, evaluation_accuracy
+
 
     def update_mini_batch(self, mini_batch, eta, lmbda):
         """
@@ -188,7 +219,7 @@ class Network(object):
             nabla_w = [nw + dnw for nw, dnw in zip(nabla_w, derivative_w)]
         # 4. Gradient descent: For each l = L, L-1, L-2, ... 2 update weights and biases
         len_mini_batch = len(mini_batch)
-        self.weights = [(1-eta*(lmbda/len_mini_batch))*w - (eta / len_mini_batch) * nw
+        self.weights = [(1 - eta * (lmbda / len_mini_batch)) * w - (eta / len_mini_batch) * nw
                         for w, nw in zip(self.weights, nabla_w)]
         self.biases = [b - (eta / len(mini_batch)) * nb
                        for b, nb in zip(self.biases, nabla_b)]
@@ -213,6 +244,32 @@ class Network(object):
         :return:
         """
         return aL - y
+
+    def total_cost(self, data, lmbda):
+        """
+        计算此数据的 cost
+        :param data:
+        :param lmbda:
+        :return:
+        """
+        total_cost = 0
+        for x, y in data:
+            predict = self.feedforward(x)
+            cost = self.cost.cost_function(predict, y)
+            total_cost += cost
+
+        # 加入正则项
+        total_cost += lmbda * np.sum(np.square(w for w in self.weights))
+        total_cost /= (2 * len(data))
+        return total_cost
+
+    def total_accuracy(self, data):
+        """
+        计算分类精度
+        :param data:
+        :return:
+        """
+        return self.classify(data) / len(data)
 
 
 def sigmoid_activate(z):
