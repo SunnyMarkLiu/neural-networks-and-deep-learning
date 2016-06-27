@@ -7,7 +7,6 @@
 @time: 2016/6/16 15:48
 """
 import mnist_loader
-import numpy as np
 import network2
 import network
 
